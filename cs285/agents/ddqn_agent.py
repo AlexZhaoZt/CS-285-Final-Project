@@ -13,8 +13,8 @@ class PairEnv(object):
     def __init__(self, env_id):
         self.env_id = env_id
         self.env1 = gym.make(env_id)
+        # self.env2 = copy.deepcopy(self.env1)
         self.env2 = gym.make(env_id)
-        # self.env1 = copy.deepcopy(self.env)
         # self.env2 = copy.deepcopy(self.env)
 
         self.observation_space = self.env1.observation_space
@@ -55,7 +55,7 @@ class DDQNCritic:
     def __init__(self, hparams, critic, action_space):
         self.model = critic
         self.action_space = action_space
-        self.double_q = False
+        self.double_q = hparams['double_q']
         self.gamma = hparams['gamma']
         self.loss = nn.SmoothL1Loss()  # AKA Huber loss
         self.grad_norm_clipping = hparams['grad_norm_clipping']
@@ -94,15 +94,22 @@ class DDQNCritic:
             # is being updated, but the Q-value for this action is obtained from the
             # target Q-network. Please review Lecture 8 for more details,
             # and page 4 of https://arxiv.org/pdf/1509.06461.pdf is also a good reference.
-            qa_tp1_values = self.q_net(next_ob_no)
-            a_tp1 = qa_tp1_values.argmax(dim=1)
-            qa_tp1_values = self.q_net_target(next_ob_no)
-            q_tp1 = torch.gather(qa_tp1_values, 1, a_tp1.unsqueeze(1)).squeeze(1)
+            v1s = self.model.q_net(next_ob_no[:,0])
+            v2s = self.model.q_net(next_ob_no[:,1])
+            a_tp1_1 = v1s.argmax(dim=1)
+            a_tp1_2 = v2s.argmax(dim=1)
+
+            v1s_target = self.model.q_net_target(next_ob_no[:,0])
+            v2s_target = self.model.q_net_target(next_ob_no[:,1])
+
+            q_tp1 = torch.gather(v1s_target, 1, a_tp1_1.unsqueeze(1)).squeeze(1) - torch.gather(v2s_target, 1, a_tp1_2.unsqueeze(1)).squeeze(1)
             # q_tp1, _ = qa_tp1_values.max(dim=1)
+
+
             
         else:
-            v1, _ = torch.max(self.model.q_net(next_ob_no[:,0]), 1)
-            v2, _ = torch.max(self.model.q_net(next_ob_no[:,1]), 1)
+            v1, _ = torch.max(self.model.q_net_target(next_ob_no[:,0]), 1)
+            v2, _ = torch.max(self.model.q_net_target(next_ob_no[:,1]), 1)
             q_tp1 = v1 - v2
             
         # TODO compute targets for minimizing Bellman error
@@ -129,6 +136,7 @@ class DDQNAgent(object):
         
         self.env_id = agent_params['env_name']
         self.env = PairEnv(self.env_id) #TODO make pairEnv
+        self.env.seed(agent_params['seed'])
         self.agent_params = agent_params
         self.batch_size = agent_params['batch_size']
         # import ipdb; ipdb.set_trace()
@@ -178,6 +186,23 @@ class DDQNAgent(object):
                 # with probability eps (see np.random.random())
                 # OR if your current step number (see self.t) is less that self.learning_starts
             action1 = np.random.randint(self.num_actions)
+        else:
+            # HINT: Your actor will take in multiple previous observations ("frames") in order
+                # to deal with the partial observability of the environment. Get the most recent 
+                # `frame_history_len` observations using functionality from the replay buffer,
+                # and then use those observations as input to your actor. 
+            frame_history = self.replay_buffer.encode_recent_observation()
+            
+            # merged_action_index = self.actor.get_action(frame_history) 
+            # action1 = merged_action_index // self.num_actions
+            # action2 = merged_action_index % self.num_actions
+
+            action1 = self.eval_actor.get_action(frame_history[0]) 
+        perform_random_action = np.random.rand() < eps or self.t < self.learning_starts
+        if perform_random_action:
+            # HINT: take random action 
+                # with probability eps (see np.random.random())
+                # OR if your current step number (see self.t) is less that self.learning_starts
             action2 = np.random.randint(self.num_actions)
         else:
             # HINT: Your actor will take in multiple previous observations ("frames") in order
@@ -186,9 +211,11 @@ class DDQNAgent(object):
                 # and then use those observations as input to your actor. 
             frame_history = self.replay_buffer.encode_recent_observation()
             
-            merged_action_index = self.actor.get_action(frame_history) 
-            action1 = merged_action_index // self.num_actions
-            action2 = merged_action_index % self.num_actions
+            # merged_action_index = self.actor.get_action(frame_history) 
+            # action1 = merged_action_index // self.num_actions
+            # action2 = merged_action_index % self.num_actions
+
+            action2 = self.eval_actor.get_action(frame_history[1]) 
         
         action = (action1, action2)
         # TODO take a step in the environment using the action from the policy

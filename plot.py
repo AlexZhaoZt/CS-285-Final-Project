@@ -4,10 +4,7 @@ from tensorboard.backend.event_processing import event_accumulator
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
-font = {'family' : 'normal',
-        'size'   : 14}
 
-matplotlib.rc('font', **font)
 legends = ['DQN']
 
 pacman = 'data/hw3_q1_MsPacman-v0_22-10-2021_03-35-40/events.out.tfevents.1634898940.bugting-desktop'
@@ -18,6 +15,9 @@ lunarlander_dqn = ['data/hw3_q2_dqn_1_LunarLander-v3_22-10-2021_02-29-15/events.
 lunarlander_doubledqn = ['data/hw3_q2_doubledqn_1_LunarLander-v3_22-10-2021_02-37-49/events.out.tfevents.1634895469.bugting-desktop',
                         'data/hw3_q2_doubledqn_2_LunarLander-v3_22-10-2021_02-49-27/events.out.tfevents.1634896167.bugting-desktop',
                         'data/hw3_q2_doubledqn_3_LunarLander-v3_22-10-2021_03-05-31/events.out.tfevents.1634897131.bugting-desktop']
+lunarlander_ddqn = ['data/ddqn_lunar_LunarLander-v3_13-12-2021_06-01-14/events.out.tfevents.1639404074.bugting-desktop',
+                    'data/ddqn_lunar_LunarLander-v3_13-12-2021_06-37-10/events.out.tfevents.1639406230.bugting-desktop',
+                    'data/ddqn_lunar_LunarLander-v3_13-12-2021_06-33-38/events.out.tfevents.1639406018.bugting-desktop']
 
 hyperparam_legends = ['Original', '(0,1) to (500k,0.02)', '(0,1) to (500k,0.1)', '(0,1) to (50k,0.1)']
 
@@ -65,25 +65,7 @@ def plot_q1():
     plt.savefig('pacman.png')
     plt.clf()
 
-def plot_q2():
-    lunarlander_dqn_array = []
-    for exp in lunarlander_dqn:
-        ea = event_accumulator.EventAccumulator(exp,
-        size_guidance={ # see below regarding this argument
-            event_accumulator.COMPRESSED_HISTOGRAMS: 500,
-            event_accumulator.IMAGES: 4,
-            event_accumulator.AUDIO: 4,
-            event_accumulator.SCALARS: 0,
-            event_accumulator.HISTOGRAMS: 1,
-        })
-
-        events = ea.Reload()
-        eval_ret = ea.Scalars('Train_AverageReturn')
-        df = pd.DataFrame(eval_ret)
-        lunarlander_dqn_array.append(df.value)
-
-    lunarlander_dqn_array = np.array(lunarlander_dqn_array)
-
+def plot_lunarlander():
     lunarlander_doubledqn_array = []
     for exp in lunarlander_doubledqn:
         ea = event_accumulator.EventAccumulator(exp,
@@ -101,13 +83,32 @@ def plot_q2():
         lunarlander_doubledqn_array.append(df.value)
         
     lunarlander_doubledqn_array = np.array(lunarlander_doubledqn_array)
+
+    lunarlander_ddqn_array = []
+    for exp in lunarlander_ddqn:
+        ea = event_accumulator.EventAccumulator(exp,
+        size_guidance={ # see below regarding this argument
+            event_accumulator.COMPRESSED_HISTOGRAMS: 500,
+            event_accumulator.IMAGES: 4,
+            event_accumulator.AUDIO: 4,
+            event_accumulator.SCALARS: 0,
+            event_accumulator.HISTOGRAMS: 1,
+        })
+
+        events = ea.Reload()
+        eval_ret = ea.Scalars('Train_AverageReturn')
+        df = pd.DataFrame(eval_ret)
+        lunarlander_ddqn_array.append(df.value)
+        
+    lunarlander_ddqn_array = np.array(lunarlander_ddqn_array)
     
     x_axis = np.arange(0, 5e5, 10000)[:-1]
     plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
     plt.ylabel('Return')
     plt.xlabel('Time steps')
-    plt.plot(x_axis, np.mean(lunarlander_dqn_array, 0), label='DQN')
-    plt.plot(x_axis, np.mean(lunarlander_doubledqn_array, 0), label='Double DQN')
+    plt.plot(x_axis, np.mean(lunarlander_doubledqn_array, 0), label='DQN')
+    x_axis = np.arange(0, 5e5, 10000)
+    plt.plot(x_axis, np.mean(lunarlander_ddqn_array, 0), label='DDQN')
 
     plt.legend()
     plt.savefig('q2.png')
@@ -249,7 +250,7 @@ def plot_cheetah():
     plt.clf()
 
 # plot_q1()
-# plot_q2()
+plot_lunarlander()
 # plot_q3()
-plot_cartpole()
+# plot_cartpole()
 # plot_cheetah()

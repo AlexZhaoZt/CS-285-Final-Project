@@ -42,7 +42,7 @@ def main():
     parser.add_argument(
         '--env_name',
         default='MsPacman-v0',
-        choices=('PongNoFrameskip-v4', 'LunarLander-v3', 'MsPacman-v0', 'MiniGrid-Empty-5x5-v0')
+        choices=('PongNoFrameskip-v4', 'LunarLander-v3', 'MsPacman-v0', 'MiniGrid-Empty-5x5-v0', 'CartPole-v0')
     )
 
     parser.add_argument('--ep_len', type=int, default=100)

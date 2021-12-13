@@ -94,6 +94,25 @@ def get_env_kwargs(env_name):
             'env_wrappers': minigrid_empty_wrapper
         }
         kwargs['exploration_schedule'] = lander_exploration_schedule(kwargs['num_timesteps']) 
+    elif env_name == 'CartPole-v0':
+        def cartpole_empty_wrapper(env):
+            return env
+        kwargs = {
+            'optimizer_spec': lander_optimizer(),
+            'q_func': create_lander_q_network,
+            'replay_buffer_size': 50000,
+            'batch_size': 32,
+            'gamma': 1.00,
+            'learning_starts': 1000,
+            'learning_freq': 1,
+            'frame_history_len': 1,
+            'target_update_freq': 3000,
+            'grad_norm_clipping': 10,
+            'lander': True,
+            'num_timesteps': 500000,
+            'env_wrappers': cartpole_empty_wrapper
+        }
+        kwargs['exploration_schedule'] = lander_exploration_schedule(kwargs['num_timesteps']) 
     else:
         raise NotImplementedError
 
@@ -192,8 +211,8 @@ def lander_exploration_schedule(num_timesteps):
     return PiecewiseSchedule(
         [
             (0, 1),
-            (num_timesteps * 0.1, 0.1),
-        ], outside_value=0.1
+            (num_timesteps * 0.1, 0.02),
+        ], outside_value=0.02
     )
 
 
