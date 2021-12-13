@@ -128,8 +128,7 @@ class DDQNAgent(object):
     def __init__(self, env, agent_params):
         
         self.env_id = agent_params['env_name']
-        self.train_env = PairEnv(self.env_id) #TODO make pairEnv
-        self.eval_env = env
+        self.env = PairEnv(self.env_id) #TODO make pairEnv
         self.agent_params = agent_params
         self.batch_size = agent_params['batch_size']
         # import ipdb; ipdb.set_trace()

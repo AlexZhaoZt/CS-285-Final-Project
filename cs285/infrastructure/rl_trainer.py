@@ -141,7 +141,7 @@ class RL_Trainer(object):
         self.total_envsteps = 0
         self.start_time = time.time()
 
-        print_period = 1000 if isinstance(self.agent, DQNAgent) else 1
+        print_period = 1000 if isinstance(self.agent, DQNAgent) or isinstance(self.agent, DDQNAgent) else 1
         for itr in range(n_iter):
             if itr % print_period == 0:
                 print("\n\n********** Iteration %i ************"%itr)
@@ -245,6 +245,8 @@ class RL_Trainer(object):
         
         last_log = all_logs[-1]
 
+        self.run_eval_loop(20)
+
         episode_rewards = get_wrapper_by_name(self.env, "Monitor").get_episode_rewards()
         if len(episode_rewards) > 0:
             self.mean_episode_reward = np.mean(episode_rewards[-100:])
@@ -281,72 +283,23 @@ class RL_Trainer(object):
 
     def run_eval_loop(self, n_iter):
         """
-        :param n_iter:  number of (dagger) iterations
+        :param n_iter:  number of evaluation iterations
         """
 
         # init vars at beginning of training
-        self.total_envsteps = 0
-        self.start_time = time.time()
 
-        print_period = 1000 if isinstance(self.agent, DDQNAgent) else 1
+        for _ in range(n_iter):
+            state = self.env.reset()
+            done = False
+            while not done:
+                # for itr in range(self.params['ep_len']):
+                action = self.agent.eval_actor.get_action(state)
+                
+                next_state, reward, done, info = self.env.step(action)
 
-        state = self.env.reset()
+                state = next_state
 
-        for itr in range(n_iter):
-
-            if itr % print_period == 0:
-                print("\n\n********** Eval Iteration %i ************"%itr)
-
-            # decide if videos should be rendered/logged at this iteration
-            if itr % self.params['video_log_freq'] == 0 and self.params['video_log_freq'] != -1:
-                self.logvideo = True
-            else:
-                self.logvideo = False
-
-            # decide if metrics should be logged
-            if self.params['scalar_log_freq'] == -1:
-                self.logmetrics = False
-            elif itr % self.params['scalar_log_freq'] == 0:
-                self.logmetrics = True
-            else:
-                self.logmetrics = False
-
-            # collect trajectories, to be used for training
-            # only perform an env step and add to replay buffer for DQN
-            self.agent.eval_actor.get_action(state)
-            
-            self.env
-            envsteps_this_batch = 1
-            train_video_paths = None
-            paths = None
-            
-
-            self.total_envsteps += envsteps_this_batch
-
-            # relabel the collected obs with actions from a provided expert policy
-            if relabel_with_expert and itr>=start_relabel_with_expert:
-                paths = self.do_relabel_with_expert(expert_policy, paths)
-
-            # add collected data to replay buffer
-            self.agent.add_to_replay_buffer(paths)
-
-            # train agent (using sampled data from replay buffer)
-            if itr % print_period == 0:
-                print("\nTraining agent...")
-            all_logs = self.train_agent()
-
-            # log/save
-            if self.logvideo or self.logmetrics:
-                # perform logging
-                print('\nBeginning logging procedure...')
-                if isinstance(self.agent, DQNAgent) or isinstance(self.agent, DDQNAgent):
-                    self.perform_dqn_logging(all_logs)
-                else:
-                    self.perform_logging(itr, paths, eval_policy, train_video_paths, all_logs)
-
-                if self.params['save_params']:
-                    self.agent.save('{}/agent_itr_{}.pt'.format(self.params['logdir'], itr))
-
+        print('-------Done evaluation-------')                    
 
     def perform_logging(self, itr, paths, eval_policy, train_video_paths, all_logs):
 
