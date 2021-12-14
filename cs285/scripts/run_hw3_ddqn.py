@@ -1,5 +1,8 @@
 import os
 import time
+import sys
+sys.path.append('/Users/arwaalanqary/Dropbox (MIT)/Berkeley/Courses/CS285/project/CS-285-Final-Project/cs285')
+sys.path.append('/Users/arwaalanqary/Dropbox (MIT)/Berkeley/Courses/CS285/project/CS-285-Final-Project')
 
 from cs285.infrastructure.rl_trainer import RL_Trainer
 from cs285.agents.ddqn_agent import DDQNAgent

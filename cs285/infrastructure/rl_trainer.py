@@ -54,6 +54,7 @@ class RL_Trainer(object):
         # Make the gym environment
         register_custom_envs()
         self.env = gym.make(self.params['env_name'])
+        self.eval_env = gym.make(self.params['env_name'])
         # self.env = gym.make(self.params['env_name'])
         # self.env = FullyObsWrapper(self.env)
         # self.env = FlatObsWrapperNoMission(self.env)
@@ -66,20 +67,28 @@ class RL_Trainer(object):
                 force=True,
                 video_callable=(None if self.params['video_log_freq'] > 0 else False),
             )
-            self.env = params['env_wrappers'](self.env)
-            self.mean_episode_reward = -float('nan')
-            self.best_mean_episode_reward = -float('inf')
-        if 'non_atari_colab_env' in self.params and self.params['video_log_freq'] > 0:
-            self.env = wrappers.Monitor(
-                self.env,
+            self.eval_env = wrappers.Monitor(
+                self.eval_env,
                 os.path.join(self.params['logdir'], "gym"),
                 force=True,
                 video_callable=(None if self.params['video_log_freq'] > 0 else False),
             )
+            self.env = params['env_wrappers'](self.env)
+            self.eval_env = params['env_wrappers'](self.eval_env)
             self.mean_episode_reward = -float('nan')
             self.best_mean_episode_reward = -float('inf')
+        # if 'non_atari_colab_env' in self.params and self.params['video_log_freq'] > 0:
+        #     self.env = wrappers.Monitor(
+        #         self.env,
+        #         os.path.join(self.params['logdir'], "gym"),
+        #         force=True,
+        #         video_callable=(None if self.params['video_log_freq'] > 0 else False),
+        #     )
+        #     self.mean_episode_reward = -float('nan')
+        #     self.best_mean_episode_reward = -float('inf')
 
         self.env.seed(seed)
+        self.eval_env.seed(seed)
 
         # import plotting (locally if 'obstacles' env)
         if not(self.params['env_name']=='obstacles-cs285-v0'):
@@ -178,11 +187,7 @@ class RL_Trainer(object):
 
             self.total_envsteps += envsteps_this_batch
 
-            # relabel the collected obs with actions from a provided expert policy
-            if relabel_with_expert and itr>=start_relabel_with_expert:
-                paths = self.do_relabel_with_expert(expert_policy, paths)
-
-            # add collected data to replay buffer
+            # add collected data to replay buffer 
             self.agent.add_to_replay_buffer(paths)
 
             # train agent (using sampled data from replay buffer)
@@ -245,9 +250,9 @@ class RL_Trainer(object):
         
         last_log = all_logs[-1]
 
-        self.run_eval_loop(20)
+        self.run_eval_loop(100)
 
-        episode_rewards = get_wrapper_by_name(self.env, "Monitor").get_episode_rewards()
+        episode_rewards = get_wrapper_by_name(self.eval_env, "Monitor").get_episode_rewards()
         if len(episode_rewards) > 0:
             self.mean_episode_reward = np.mean(episode_rewards[-100:])
         if len(episode_rewards) > 100:
@@ -289,13 +294,13 @@ class RL_Trainer(object):
         # init vars at beginning of training
 
         for _ in range(n_iter):
-            state = self.env.reset()
+            state = self.eval_env.reset()
             done = False
             while not done:
                 # for itr in range(self.params['ep_len']):
                 action = self.agent.eval_actor.get_action(state)
                 
-                next_state, reward, done, info = self.env.step(action)
+                next_state, reward, done, info = self.eval_env.step(action)
 
                 state = next_state
 

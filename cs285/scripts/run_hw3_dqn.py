@@ -1,6 +1,9 @@
 import os
 import time
+import sys
 
+sys.path.append('/Users/arwaalanqary/Dropbox (MIT)/Berkeley/Courses/CS285/project/CS-285-Final-Project/cs285')
+sys.path.append('/Users/arwaalanqary/Dropbox (MIT)/Berkeley/Courses/CS285/project/CS-285-Final-Project')
 from cs285.infrastructure.rl_trainer import RL_Trainer
 from cs285.agents.dqn_agent import DQNAgent
 from cs285.infrastructure.dqn_utils import get_env_kwargs
@@ -42,7 +45,7 @@ def main():
     parser.add_argument(
         '--env_name',
         default='MsPacman-v0',
-        choices=('PongNoFrameskip-v4', 'LunarLander-v3', 'MsPacman-v0', 'MiniGrid-Empty-5x5-v0')
+        choices=('CartPole-v0', 'PongNoFrameskip-v4', 'LunarLander-v3', 'MsPacman-v0', 'MiniGrid-Empty-5x5-v0')
     )
 
     parser.add_argument('--ep_len', type=int, default=100)
