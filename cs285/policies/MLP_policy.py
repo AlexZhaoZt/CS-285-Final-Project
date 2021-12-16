@@ -95,7 +95,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         observation = ptu.from_numpy(observation)
         action_distribution = self(observation)
         action = action_distribution.sample()  # don't bother with rsample
-        return ptu.to_numpy(action)
+        return ptu.to_numpy(action)[0]
 
     # update/train this policy
     def update(self, observations, actions, **kwargs):
@@ -129,18 +129,46 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
 
 
 class MLPPolicyAC(MLPPolicy):
-    def update(self, observations, acs_na, adv_n=None, acs_labels_na=None,
+    # def update(self, observations, acs_na, adv_n=None, acs_labels_na=None,
+    #            qvals=None):
+    #     observations = ptu.from_numpy(observations)
+    #     actions = ptu.from_numpy(acs_na)
+    #     adv_n = ptu.from_numpy(adv_n)
+
+    #     action_distribution = self(observations)
+    #     loss = - action_distribution.log_prob(actions) * adv_n
+    #     loss = loss.mean()
+
+    #     self.optimizer.zero_grad()
+    #     loss.backward()
+    #     self.optimizer.step()
+
+    #     return ptu.to_numpy(loss)
+
+    def update(self, observations, acs_na, DAC=False, adv_n=None, acs_labels_na=None,
                qvals=None):
+        
         observations = ptu.from_numpy(observations)
         actions = ptu.from_numpy(acs_na)
         adv_n = ptu.from_numpy(adv_n)
 
-        action_distribution = self(observations)
-        loss = - action_distribution.log_prob(actions) * adv_n
-        loss = loss.mean()
 
+        if DAC:
+            actions1 = actions[:,0]
+            actions2 = actions[:,1]
+
+            action_distribution1 = self(observations[:,0])
+            action_distribution2 = self(observations[:,1])
+            loss = - (action_distribution1.log_prob(actions1) - action_distribution2.log_prob(actions2)) * adv_n
+            loss = loss.mean()
+        else:
+            action_distribution = self(observations)
+            loss = - action_distribution.log_prob(actions) * adv_n
+            loss = loss.mean()
+            
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
         return ptu.to_numpy(loss)
+

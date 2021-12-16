@@ -47,6 +47,7 @@ def get_env_kwargs(env_name):
             'q_func': create_atari_q_network,
             'learning_freq': 4,
             'grad_norm_clipping': 10,
+            'lander': False,
             'input_shape': (84, 84, 4),
             'env_wrappers': wrap_deepmind,
             'frame_history_len': 4,
@@ -101,12 +102,12 @@ def get_env_kwargs(env_name):
             'optimizer_spec': lander_optimizer(),
             'q_func': create_cartpole_q_network,
             'replay_buffer_size': 50000,
-            'batch_size': 512,
-            'gamma': 0.9,
+            'batch_size': 256,
+            'gamma': 0.99,
             'learning_starts': 1000,
             'learning_freq': 1,
             'frame_history_len': 1,
-            'target_update_freq': 10000,
+            'target_update_freq': 3000,
             'grad_norm_clipping': 10,
             'lander': True,
             'num_timesteps': 500000,
@@ -237,8 +238,8 @@ def cartpole_exploration_schedule(num_timesteps):
     return PiecewiseSchedule(
         [
             (0, 1),
-            (num_timesteps * 0.1, 0.01),
-        ], outside_value=0.01
+            (num_timesteps * 0.1, 0.1),
+        ], outside_value=0.1
     )
 
 
@@ -704,11 +705,11 @@ class PairReplayBuffer(object):
             frames = [np.zeros_like(self.obs[0]) for _ in range(missing_context)]
             for idx in range(start_idx, end_idx):
                 frames.append(self.obs[idx % self.size])
-            return np.concatenate(frames, 2) #TODO: DOUBLE CHECK THIS
+            return np.concatenate(frames, 3) #TODO: DOUBLE CHECK THIS
         else:
             # this optimization has potential to saves about 30% compute time \o/
-            img_h, img_w = self.obs.shape[1], self.obs.shape[2]
-            return self.obs[start_idx:end_idx].transpose(1, 2, 0, 3).reshape(img_h, img_w, -1)
+            img_h, img_w = self.obs.shape[2], self.obs.shape[3]
+            return self.obs[start_idx:end_idx].transpose(0, 2, 3, 1, 4).reshape(2, img_h, img_w, -1)
 
     def store_frame(self, frame):
         """Store a single frame in the buffer at the next available index, overwriting

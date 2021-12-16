@@ -1,0 +1,94 @@
+from collections import OrderedDict
+
+from cs285.critics.dac_critic import \
+    DifferentialCritic
+from cs285.infrastructure.replay_buffer import ReplayBuffer
+from cs285.infrastructure.utils import *
+from cs285.policies.MLP_policy import MLPPolicyAC
+from .base_agent import BaseAgent
+
+import torch
+class DACAgent(BaseAgent):
+    def __init__(self, env, agent_params):
+        super(DACAgent, self).__init__()
+
+        self.env = env
+        self.agent_params = agent_params
+
+        self.gamma = self.agent_params['gamma']
+        self.standardize_advantages = self.agent_params['standardize_advantages']
+        self.actor = self.eval_actor = MLPPolicyAC(
+            self.agent_params['ac_dim'],
+            self.agent_params['ob_dim'],
+            self.agent_params['n_layers'],
+            self.agent_params['size'],
+            self.agent_params['discrete'],
+            self.agent_params['learning_rate'],
+        )
+        self.critic = DifferentialCritic(self.agent_params)
+
+        self.replay_buffer = ReplayBuffer()
+
+    def train(self, ob_no, ac_na, re_n, next_ob_no, terminal_n):
+        # TODO Implement the following pseudocode:
+        # for agent_params['num_critic_updates_per_agent_update'] steps,
+        #     update the critic
+
+        # advantage = estimate_advantage(...)
+
+        # for agent_params['num_actor_updates_per_agent_update'] steps,
+        #     update the actor
+
+        loss = OrderedDict()
+        loss['Critic_Loss'] = 0
+        loss['Actor_Loss'] = 0
+
+        for i in range(self.agent_params['num_critic_updates_per_agent_update']):
+            loss['Critic_Loss'] += self.critic.update(ob_no, ac_na, next_ob_no, re_n, terminal_n)
+
+        advantage = self.estimate_advantage(ob_no, next_ob_no, re_n, terminal_n)
+
+        for i in range(self.agent_params['num_actor_updates_per_agent_update']):
+            # loss['Actor_Loss'] += self.actor.update(ob_no[:,0], ac_na[:,0], adv_n=advantage)
+            loss['Actor_Loss'] += self.actor.update(ob_no, ac_na, DAC=True, adv_n=advantage)
+
+        return loss
+
+    def estimate_advantage(self, ob_no, next_ob_no, re_n, terminal_n):
+        # TODO Implement the following pseudocode:
+        # 1) query the critic with ob_no, to get V(s)
+        # 2) query the critic with next_ob_no, to get V(s')
+        # 3) estimate the Q value as Q(s, a) = r(s, a) + gamma*V(s')
+        # HINT: Remember to cut off the V(s') term (ie set it to 0) at terminal states (ie terminal_n=1)
+        # 4) calculate advantage (adv_n) as A(s, a) = Q(s, a) - V(s)
+        
+        
+        # V_s = self.critic.forward_np(ob_no[:,0])
+        # V_sp = self.critic.forward_np(next_ob_no[:,0])
+        # Q_val = re_n + (1 - terminal_n) * self.gamma * V_sp
+        
+        # adv_n = Q_val - V_s
+
+        V1_s = self.critic.forward_np(ob_no[:,0])
+        V2_s = self.critic.forward_np(ob_no[:,1])
+        V1_sp = self.critic.forward_np(next_ob_no[:,0])
+        V2_sp = self.critic.forward_np(next_ob_no[:,1])
+        
+        # ob1_combined = np.concatenate([ob_no[:,0], next_ob_no[:,0]], 1)
+        # ob2_combined = np.concatenate([ob_no[:,1], next_ob_no[:,1]], 1)
+        # G1_sp = self.critic.forward_np(ob1_combined)
+        # G2_sp = self.critic.forward_np(ob2_combined)
+        # Q_val = re_n + (1 - terminal_n) * self.gamma * (G1_sp - G2_sp)
+        Q_val = re_n + (1 - terminal_n) * self.gamma * (V1_sp - V2_sp)
+        
+        # adv_n = Q_val
+        adv_n = Q_val - (V1_s - V2_s)
+        if self.standardize_advantages:
+            adv_n = (adv_n - np.mean(adv_n)) / (np.std(adv_n) + 1e-8)
+        return adv_n
+
+    def add_to_replay_buffer(self, paths):
+        self.replay_buffer.add_rollouts(paths)
+
+    def sample(self, batch_size):
+        return self.replay_buffer.sample_recent_data(batch_size)

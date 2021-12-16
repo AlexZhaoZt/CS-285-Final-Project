@@ -27,9 +27,9 @@ class DQNAgent(object):
         self.actor = ArgMaxPolicy(self.critic)
         self.eval_actor = ArgMaxPolicy(self.critic)
 
-        lander = agent_params['env_name'].startswith('LunarLander')
+        low_dim = agent_params['lander']
         self.replay_buffer = MemoryOptimizedReplayBuffer(
-            agent_params['replay_buffer_size'], agent_params['frame_history_len'], lander=lander)
+            agent_params['replay_buffer_size'], agent_params['frame_history_len'], lander=low_dim)
         self.t = 0
         self.num_param_updates = 0
 

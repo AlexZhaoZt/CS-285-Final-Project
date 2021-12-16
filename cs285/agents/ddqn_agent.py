@@ -9,48 +9,6 @@ from torch import nn
 import gym
 import copy
 
-class PairEnv(object):
-    def __init__(self, env_id):
-        self.env_id = env_id
-        self.env1 = gym.make(env_id)
-        # self.env2 = copy.deepcopy(self.env1)
-        self.env2 = gym.make(env_id)
-        # self.env2 = copy.deepcopy(self.env)
-
-        self.observation_space = self.env1.observation_space
-        self.action_space = self.env1.action_space
-        self.reward = 0
-
-    def step(self, action):
-        o1, r1, d1, info = self.env1.step(action[0])
-        o2, r2, d2, info = self.env2.step(action[1])
-        self.alive_time = 1
-        self.reward += r1
-        pair_reward = self.modifiedReward(r1, d1) - self.modifiedReward(r2, d2)
-        return ([o1, o2], pair_reward, d1 or d2, info)
-
-    def modifiedReward(self, r, d):
-        if self.env_id == "CartPole-v0":
-            return r  - self.alive_time * (d == True)
-        elif self.env_id == "MountainCar-v0":
-            return r + self.alive_time * (d == True)
-        else:
-            return r
-
-    def reset(self):
-        self.reward = 0
-        self.alive_time = 0
-        return [self.env1.reset(), self.env2.reset()]
-
-    def close(self):
-        self.env1.close()
-        self.env2.close()
-
-    def seed(self, seed):
-        self.env1.seed(seed)
-        self.env2.seed(seed)
-
-
 class DDQNCritic:
     def __init__(self, hparams, critic, action_space):
         self.model = critic
@@ -135,7 +93,7 @@ class DDQNAgent(object):
     def __init__(self, env, agent_params):
         
         self.env_id = agent_params['env_name']
-        self.env = PairEnv(self.env_id) #TODO make pairEnv
+        self.env = env
         self.env.seed(agent_params['seed'])
         self.agent_params = agent_params
         self.batch_size = agent_params['batch_size']
@@ -155,9 +113,10 @@ class DDQNAgent(object):
         self.pair_critic = DDQNCritic(agent_params, self.critic, self.num_actions)
         self.actor = PairArgMaxPolicy(self.pair_critic)
         self.eval_actor = ArgMaxPolicy(self.critic)
-        lander = agent_params['env_name'].startswith('LunarLander')
+        low_dim = agent_params['lander']
+        # lander = agent_params['env_name'].startswith('LunarLander')
         self.replay_buffer = PairReplayBuffer(
-            agent_params['replay_buffer_size'], agent_params['frame_history_len'], lander=lander)
+            agent_params['replay_buffer_size'], agent_params['frame_history_len'], lander=low_dim)
         self.t = 0
         self.num_param_updates = 0
 
@@ -179,30 +138,12 @@ class DDQNAgent(object):
 
         eps = self.exploration.value(self.t)
 
-        # TODO use epsilon greedy exploration when selecting action
         perform_random_action = np.random.rand() < eps or self.t < self.learning_starts
         if perform_random_action:
             # HINT: take random action 
                 # with probability eps (see np.random.random())
                 # OR if your current step number (see self.t) is less that self.learning_starts
             action1 = np.random.randint(self.num_actions)
-        else:
-            # HINT: Your actor will take in multiple previous observations ("frames") in order
-                # to deal with the partial observability of the environment. Get the most recent 
-                # `frame_history_len` observations using functionality from the replay buffer,
-                # and then use those observations as input to your actor. 
-            frame_history = self.replay_buffer.encode_recent_observation()
-            
-            # merged_action_index = self.actor.get_action(frame_history) 
-            # action1 = merged_action_index // self.num_actions
-            # action2 = merged_action_index % self.num_actions
-
-            action1 = self.eval_actor.get_action(frame_history[0]) 
-        perform_random_action = np.random.rand() < eps or self.t < self.learning_starts
-        if perform_random_action:
-            # HINT: take random action 
-                # with probability eps (see np.random.random())
-                # OR if your current step number (see self.t) is less that self.learning_starts
             action2 = np.random.randint(self.num_actions)
         else:
             # HINT: Your actor will take in multiple previous observations ("frames") in order
@@ -215,8 +156,9 @@ class DDQNAgent(object):
             # action1 = merged_action_index // self.num_actions
             # action2 = merged_action_index % self.num_actions
 
+            action1 = self.eval_actor.get_action(frame_history[0]) 
             action2 = self.eval_actor.get_action(frame_history[1]) 
-        
+
         action = (action1, action2)
         # TODO take a step in the environment using the action from the policy
         # HINT1: remember that self.last_obs must always point to the newest/latest observation

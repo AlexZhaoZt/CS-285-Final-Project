@@ -7,6 +7,7 @@ import time
 import gym
 from gym import wrappers
 import numpy as np
+from cs285.agents.dac_agent import DACAgent
 import torch
 from cs285.infrastructure import pytorch_util as ptu
 
@@ -24,6 +25,48 @@ import copy
 # how many rollouts to save as videos to tensorboard
 MAX_NVIDEO = 2
 MAX_VIDEO_LEN = 40 # we overwrite this in the code below
+
+
+class PairEnv(object):
+    def __init__(self, env_id):
+        self.env_id = env_id
+        self.env1 = gym.make(env_id)
+        # self.env2 = copy.deepcopy(self.env1)
+        self.env2 = gym.make(env_id)
+        # self.env2 = copy.deepcopy(self.env)
+
+        self.observation_space = self.env1.observation_space
+        self.action_space = self.env1.action_space
+        self.reward = 0
+
+    def step(self, action):
+        o1, r1, d1, info = self.env1.step(action[0])
+        o2, r2, d2, info = self.env2.step(action[1])
+        self.alive_time = 1
+        self.reward += r1
+        pair_reward = self.modifiedReward(r1, d1) - self.modifiedReward(r2, d2)
+        return ([o1, o2], pair_reward, d1 or d2, info)
+
+    def modifiedReward(self, r, d):
+        # if self.env_id == "CartPole-v0":
+        #     return r  - self.alive_time * (d == True)
+        # elif self.env_id == "MountainCar-v0":
+        #     return r + self.alive_time * (d == True)
+        # else:
+        return r
+
+    def reset(self):
+        self.reward = 0
+        self.alive_time = 0
+        return [self.env1.reset(), self.env2.reset()]
+
+    def close(self):
+        self.env1.close()
+        self.env2.close()
+
+    def seed(self, seed):
+        self.env1.seed(seed)
+        self.env2.seed(seed)
 
 
 class RL_Trainer(object):
@@ -53,7 +96,10 @@ class RL_Trainer(object):
 
         # Make the gym environment
         register_custom_envs()
-        self.env = gym.make(self.params['env_name'])
+        if self.params['agent_class'] == DDQNAgent or self.params['agent_class'] == DACAgent: 
+            self.env = PairEnv(self.params['env_name'])
+        else:
+            self.env = gym.make(self.params['env_name'])
         self.eval_env = gym.make(self.params['env_name'])
         # self.env = gym.make(self.params['env_name'])
         # self.env = FullyObsWrapper(self.env)
@@ -61,19 +107,13 @@ class RL_Trainer(object):
         # print(self.env.observation_space)
         if 'env_wrappers' in self.params:
             # These operations are currently only for Atari envs
-            self.env = wrappers.Monitor(
-                self.env,
-                os.path.join(self.params['logdir'], "gym"),
-                force=True,
-                video_callable=(None if self.params['video_log_freq'] > 0 else False),
-            )
             self.eval_env = wrappers.Monitor(
                 self.eval_env,
                 os.path.join(self.params['logdir'], "gym"),
                 force=True,
                 video_callable=(None if self.params['video_log_freq'] > 0 else False),
             )
-            self.env = params['env_wrappers'](self.env)
+            # self.env = params['env_wrappers'](self.env)
             self.eval_env = params['env_wrappers'](self.eval_env)
             self.mean_episode_reward = -float('nan')
             self.best_mean_episode_reward = -float('inf')
@@ -120,8 +160,8 @@ class RL_Trainer(object):
             self.fps = 1/self.env.model.opt.timestep
         elif 'env_wrappers' in self.params:
             self.fps = 30 # This is not actually used when using the Monitor wrapper
-        elif 'video.frames_per_second' in self.env.env.metadata.keys():
-            self.fps = self.env.env.metadata['video.frames_per_second']
+        elif 'video.frames_per_second' in self.eval_env.env.metadata.keys():
+            self.fps = self.eval_env.env.metadata['video.frames_per_second']
         else:
             self.fps = 10
 
@@ -129,7 +169,7 @@ class RL_Trainer(object):
         #############
         ## AGENT
         #############
-
+    
         agent_class = self.params['agent_class']
         self.agent = agent_class(self.env, self.params['agent_params'])
 
@@ -229,7 +269,7 @@ class RL_Trainer(object):
 
         print("\nCollecting data to be used for training...")
         paths, envsteps_this_batch = utils.sample_trajectories(
-            self.env, collect_policy, num_transitions_to_sample, self.params['ep_len'])
+            self.env, collect_policy, num_transitions_to_sample, self.params['ep_len'], DAC=isinstance(self.env, PairEnv))
 
         train_video_paths = self.params['logdir']
         
@@ -310,17 +350,18 @@ class RL_Trainer(object):
 
         last_log = all_logs[-1]
 
+        # self.run_eval_loop(self.params['eval_batch_size'])
         #######################
 
         # collect eval trajectories, for logging
         print("\nCollecting data for eval...")
-        eval_paths, eval_envsteps_this_batch = utils.sample_trajectories(self.env, eval_policy, self.params['eval_batch_size'], self.params['ep_len'])
+        eval_paths, eval_envsteps_this_batch = utils.sample_trajectories(self.eval_env, eval_policy, self.params['eval_batch_size'], self.params['ep_len'])
 
         # save eval rollouts as videos in tensorboard event file
         # if self.logvideo and train_video_paths != None:
         if self.logvideo:
             print('\nCollecting video rollouts eval')
-            eval_video_paths = utils.sample_n_trajectories(self.env, eval_policy, MAX_NVIDEO, MAX_VIDEO_LEN, True)
+            eval_video_paths = utils.sample_n_trajectories(self.eval_env, eval_policy, MAX_NVIDEO, MAX_VIDEO_LEN, True)
 
             #save train/eval videos
             print('\nSaving train rollouts as videos...')
