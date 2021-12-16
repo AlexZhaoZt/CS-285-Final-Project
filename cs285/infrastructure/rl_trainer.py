@@ -48,12 +48,12 @@ class PairEnv(object):
         return ([o1, o2], pair_reward, d1 or d2, info)
 
     def modifiedReward(self, r, d):
-        # if self.env_id == "CartPole-v0":
-        #     return r  - self.alive_time * (d == True)
-        # elif self.env_id == "MountainCar-v0":
-        #     return r + self.alive_time * (d == True)
-        # else:
-        return r
+        if self.env_id == "CartPole-v0":
+            return r  - self.alive_time * (d == True)
+        elif self.env_id == "MountainCar-v0":
+            return r + self.alive_time * (d == True)
+        else:
+            return r
 
     def reset(self):
         self.reward = 0

@@ -114,6 +114,25 @@ def get_env_kwargs(env_name):
             'env_wrappers': cartpole_empty_wrapper
         }
         kwargs['exploration_schedule'] = cartpole_exploration_schedule(kwargs['num_timesteps']) 
+    elif env_name == 'MountainCar-v0':
+        def mc_empty_wrapper(env):
+            return env
+        kwargs = {
+            'optimizer_spec': lander_optimizer(),
+            'q_func': create_cartpole_q_network,
+            'replay_buffer_size': 50000,
+            'batch_size': 256,
+            'gamma': 0.99,
+            'learning_starts': 1000,
+            'learning_freq': 1,
+            'frame_history_len': 1,
+            'target_update_freq': 3000,
+            'grad_norm_clipping': 10,
+            'lander': True,
+            'num_timesteps': 500000,
+            'env_wrappers': mc_empty_wrapper
+        }
+        kwargs['exploration_schedule'] = cartpole_exploration_schedule(kwargs['num_timesteps']) 
     else:
         raise NotImplementedError
 
